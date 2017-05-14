@@ -392,3 +392,11 @@ figure() %>%
 figure() %>%
   ly_boxplot(x=SaleCondition, y=SalePrice, data=train)
 
+# Final tableplot
+features <- c("SalePrice", "Neighborhood", "MSZoning", "YearBuilt", "GarageCars", "GrLivArea", "OverallQual")
+tableplot(train[, features], cex=1.8, sortCol = "SalePrice")
+# High price houses are in the same place (the green one)
+# Low price houses are in the brown-ish one.
+# RM are cheaper.
+# Numerical values works as expected.
+
