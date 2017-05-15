@@ -73,7 +73,7 @@ apply(X = all_data, MARGIN = 2, FUN=function(x) sum(is.na(x)))
 # Replace MSZoning, by looking at the most frequent classes of buildings of the same kind.
 all_data[is.na(all_data$MSZoning),c('MSZoning','MSSubClass')]
 which(is.na(all_data$MSZoning))
-table(all_data$MSZoning, all_data$MSSubClass)
+table(train$MSZoning, train$MSSubClass)
 all_data$MSZoning[c(2217, 2905)] <- 'RL'
 all_data$MSZoning[c(1916, 2251)] <- 'RM'
 
@@ -122,6 +122,11 @@ all_data$MasVnrArea[is.na(all_data$MasVnrArea)] = 0
 
 
 # Handle Basement
+# There is one row with missing BsmtFinType2. 
+# We can infer it from:
+table(train$BsmtFinType1, train$BsmtFinType2)
+all_data$BsmtFinType2[333] = "Unf"
+
 # From the data description, NA means that no basement is present.
 # We can use a default value, and set to 0 the size of the basement.
 all_data$BsmtFinType1[is.na(all_data$BsmtFinType1)] = 'None'
@@ -179,10 +184,10 @@ all_data$GarageCond[garage_na] <- "None"
 
 # For the remaining 2 rows, we can infer the values from the garage type.
 which(is.na(all_data$GarageQual))
-table(all_data$GarageQual, all_data$GarageType)
-table(all_data$GarageCond, all_data$GarageType)
-table(all_data$GarageFinish, all_data$GarageType)
-table(all_data$GarageCars, all_data$GarageType)
+table(train$GarageQual, train$GarageType)
+table(train$GarageCond, train$GarageType)
+table(train$GarageFinish, train$GarageType)
+table(train$GarageCars, train$GarageType)
 all_data$GarageQual[c(2127, 2577)] <- "TA"
 all_data$GarageCond[c(2127, 2577)] <- "TA"
 all_data$GarageFinish[c(2127, 2577)] <- "Unf"
