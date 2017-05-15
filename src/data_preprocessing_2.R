@@ -234,6 +234,11 @@ train <- train[-which(train$Id %in% big_area), ]
 train <- cbind(all_data[1:nrow(train), ], SalePrice=train$SalePrice)
 test <- all_data[1:nrow(test), ]
 
+######### DANGEROUS!!!! ##########
+# Fill the train set
+train <- fill_lot_frontage(train, train)
+
+
 # Fill the test set
 test <- fill_lot_frontage(test, train)
 
