@@ -12,6 +12,7 @@ library(xtable)
 library(dplyr)
 library(corrplot)
 library(infotheo)
+library(dummies)
 
 
 #####################
@@ -228,11 +229,11 @@ all_data$MSSubClass_Common <- (all_data$MSSubClass %in% c("20", "60", "50")) * 1
 
 # MSZoning
 figure() %>% ly_bar(x=MSZoning, data=train)
-all_data$MSZoningRLRM <- (all_data$MSSubClass %in% c("RL", "RM")) * 1
+all_data$MSZoningRLRM <- (all_data$MSZoning %in% c("RL", "RM")) * 1
 
 # Street
 table(train$Street)
-all_data$Street <- (all_data$MSSubClass == "Grvl") * 1
+all_data$Street <- (all_data$Street == "Grvl") * 1
 
 # LotShape
 table(train$LotShape)
@@ -286,7 +287,7 @@ all_data$ExteriorDiff <- (all_data$Exterior1st == all_data$Exterior2nd) * 1
 all_data$Foundation <- if_else(all_data$Foundation %in% c("Stone", "Slab", "Wood"), "Other", all_data$Foundation)
 
 # Basement
-all_data$BsmtPresent <- (all_data$BsmtQual != "None") * 1
+all_data$BsmtPresent <- (all_data$BsmtQual > 0) * 1
 
 # Heating
 all_data$Heating <- (all_data$Heating != "GasA") * 1
@@ -302,6 +303,8 @@ all_data$GarageType <- if_else(all_data$GarageType %in% c("2Types", "Basment", "
 
 # Miscellaneous: the only relevant feature is the presence of a big shed.
 all_data$ShedPresent <- (all_data$MiscFeature == "Shed") * 1
+all_data$MiscFeature <- NA
+
 
 # MiscVal: the meaning is unclear, but we can add a binary variable to denote the presence of a positive value.
 all_data$MiscValPresent <- (all_data$MiscVal > 0) * 1
@@ -363,3 +366,142 @@ area_columns = c("LotFrontage", "LotArea", "MasVnrArea", "BsmtFinSF1", "BsmtFinS
 all_data$TotalArea = as.numeric(rowSums(all_data[ , area_columns]))
 
 all_data$InsideArea = as.numeric(all_data$`1stFlrSF` + all_data$`2ndFlrSF`)
+
+all_data$TotalArea_D1 <- discretize(all_data$TotalArea, nbins = 20)$X 
+all_data$TotalArea_D2 <- discretize(all_data$TotalArea, nbins = 10)$X 
+all_data$TotalArea_D3 <- discretize(all_data$TotalArea, nbins = 5)$X 
+
+all_data$InsideArea_D1 <- discretize(all_data$InsideArea, nbins = 20)$X 
+all_data$InsideArea_D2 <- discretize(all_data$InsideArea, nbins = 10)$X 
+all_data$InsideArea_D3 <- discretize(all_data$InsideArea, nbins = 5)$X 
+
+#####################
+# TEMPORAL FEATURES #
+#####################
+
+# Add season
+all_data$SeasonSold <- all_data$MoSold / 4
+all_data$HighSeason <- (all_data$MoSold %in% c(5, 6, 7)) * 1
+
+# Add decade/century/millenium
+all_data$BuiltDecade <- all_data$YearBuilt / 10
+all_data$BuiltCentury <- all_data$YearBuilt / 100
+all_data$BuiltMillenium <- (all_data$YearBuilt >= 2000) * 1
+
+all_data$RebuiltDecade <- all_data$YearRemodAdd / 10
+all_data$RebuiltCentury <- all_data$YearRemodAdd / 100
+all_data$RebuiltMillenium <- (all_data$YearRemodAdd >= 2000) * 1
+
+
+# Combine month + year
+
+all_data$MonthYearSold <- all_data$MoSold + all_data$YrSold * 12
+
+temp <- cbind(all_data[1:nrow(train), ], SalePrice=train$SalePrice)
+figure() %>% ly_boxplot(x=MonthYearSold, SalePrice, data=temp)
+
+salestime <- temp %>% dplyr::group_by(x=MonthYearSold) %>% dplyr::summarise(price=median(SalePrice))
+figure(width = 800) %>% ly_lines(x, price, data=salestime, color="blue", alpha=0.5)
+acf(salestime$price)
+
+# Was the house remodelled?
+all_data$Remodelled <- (all_data$YearBuilt < all_data$YearRemodAdd) * 1
+all_data$YearsSinceRemodel <- all_data$YearRemodAdd - all_data$YearBuilt
+
+# Years after remodel when the house was sold.
+all_data$YearsSoldAfterRemodel <- all_data$YrSold - all_data$YearRemodAdd 
+
+# Sold in the same year as it was built.
+all_data$SameYearBuiltSold <- (all_data$YearBuilt == all_data$YrSold) * 1
+# Sold the same year it was rebuilt.
+all_data$SameYearRebuiltSold <- (all_data$YearRemodAdd == all_data$YrSold) * 1
+
+# Age of the house
+all_data$Age <- 2010 - all_data$YearBuilt
+
+# Age of the sale
+all_data$SaleAge <- 2010 - all_data$YrSold
+
+
+all_data$YearBuilt_DO <- discretize(all_data$YearBuilt, nbins = 10)$X 
+all_data$YearBuilt_DD <- discretize(all_data$YearBuilt, nbins = 5)$X 
+
+all_data$GarageYrBlt_DO <- discretize(all_data$GarageYrBlt , nbins = 10)$X 
+all_data$GarageYrBlt_DD <- discretize(all_data$GarageYrBlt , nbins = 5)$X 
+
+all_data$YearRemodAdd_DO <- discretize(all_data$YearRemodAdd, nbins = 10)$X 
+all_data$YearRemodAdd_DD <- discretize(all_data$YearRemodAdd, nbins = 5)$X 
+
+##############
+# SOME PLOTS #
+##############
+
+correlations <- cor(keep(temp, is.numeric))
+corrplot(correlations, method='color', addCoef.col = 'black', tl.cex = .7,cl.cex = .7, number.cex=.7)
+
+sales_cor <- data.frame(var=names(correlations[nrow(correlations), ]), correlation=correlations[nrow(correlations), ], row.names=NULL)
+
+figure(width = 1200, height=800) %>% 
+  ly_bar(x=var, y=correlation, data=sales_cor) %>%
+  theme_axis(major_label_orientation = 45) %>%
+  x_range(dat=sales_cor[order(sales_cor$correlation, decreasing = T), ]$var)
+
+
+
+##############################
+# LOG SCALE NUMERIC FEATURES #
+##############################
+
+# If a feature is skewed, it can be good to log-transform it, as log(x + 1)
+
+numeric_cols <- names(keep(all_data, is.numeric))
+numeric_cols <- numeric_cols[!numeric_cols %in% c("Id", "GarageYrBlt_DD", "YearBuilt_DD", "YearRemodAdd_DD")]
+
+skewed <- sapply(all_data[1:nrow(train), numeric_cols], skew)
+skdf <- data.frame(name=numeric_cols, skewness=sapply(all_data[1:nrow(train), numeric_cols], skew), logsk=sapply(log(all_data[1:nrow(train), numeric_cols]), skew), logsk1=sapply(log(1+all_data[1:nrow(train), numeric_cols]), skew))
+skdf$better <- abs(skdf$skewness) > abs(skdf$logsk1)
+
+# Log-transform the features that have reduced skew
+
+all_data[, as.character(subset(skdf, better)$name)] <- log(1 + all_data[, as.character(subset(skdf, better)$name)]) 
+
+# Z-Score
+mus <- sapply(all_data[1:nrow(train), numeric_cols], mean)
+sigmas <- sapply(all_data[1:nrow(train), numeric_cols], sd)
+
+all_data[, numeric_cols] <- scale(all_data[, numeric_cols], mus, sigmas)
+
+##############
+# DUMMY VARS #
+##############
+
+# Turn YearBuilt_DD1 etc... to strings so that they can be binarized.
+all_data$YearBuilt_DD <- as.character(all_data$YearBuilt_DD)
+all_data$YearRemodAdd_DD <- as.character(all_data$YearRemodAdd_DD)
+all_data$GarageYrBlt_DD <- as.character(all_data$GarageYrBlt_DD)
+
+# Make a list of character features to be encoded.
+char_columns <- names(keep(all_data, is.character))
+
+dummy_encoder <- dummyVars(" ~ .", data=all_data[, char_columns])
+all_data_dummy <- data.frame(predict(dummy_encoder, newdata = all_data))
+
+# Replace the original string features with the encoded ones.
+all_data <- cbind(all_data[, !names(all_data) %in% char_columns], all_data_dummy)
+
+#######################
+# REBUILD TRAIN, TEST #
+#######################
+
+train_fin <- all_data[1:nrow(train), ]
+test_fin <- all_data[(nrow(train)+1):nrow(all_data), ]
+
+# Put back the sale price.
+train_fin$SalePrice <- train$SalePrice
+
+# Log-transform the price.
+# No normalization, that is better to be done in cross-validation, in order not to leak information.
+train_fin$SalePrice <- log(1 + train_fin$SalePrice)
+
+
+
