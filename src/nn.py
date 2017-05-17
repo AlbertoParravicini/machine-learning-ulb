@@ -50,6 +50,13 @@ all_data = all_data.fillna(train.mean())
 #creating matrices for sklearn:
 X_train = all_data[:train.shape[0]]
 X_test = all_data[train.shape[0]:]
+
+X_train.insert(0, "Id", train.Id)
+X_test.insert(0, "Id", test.Id)
+X_train["SalePrice"] = train.SalePrice
+X_train.to_csv("../data/train_simple.csv", index=False)
+X_test.to_csv("../data/test_simple.csv", index=False)
+
 y = train.SalePrice
 
 #%% BUILD NN

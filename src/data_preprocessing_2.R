@@ -232,7 +232,7 @@ train <- train[-which(train$Id %in% big_area), ]
 
 # Rebuild the datasets.
 train <- cbind(all_data[1:nrow(train), ], SalePrice=train$SalePrice)
-test <- all_data[1:nrow(test), ]
+test <- all_data[(nrow(train)+1):nrow(all_data), ]
 
 ######### DANGEROUS!!!! ##########
 # Fill the train set
