@@ -88,6 +88,20 @@ all_data_2 <- sqldf("select * from all_data left join gps_avg_price on gps_avg_p
 
 all_data_2 <- plyr::rename(all_data_2, c("price"="NeighborhoodAvgSale", "n"="NeighborhoodNumSales"))
 
+
+########################################
+# DANGEROUS:                           #
+# intentionally leak from the test set #
+########################################
+gps_price_2 <- sqldf("select all_data.Neighborhood, lat, lon from gps, all_data where gps.Neighborhood = all_data.Neighborhood")
+gps_num_sales = gps_price_2 %>% dplyr::group_by(Neighborhood, lat, lon) %>% dplyr::summarise(n=n())
+all_data_2$NeighborhoodNumSalesTot <- 0
+for(i in 1:nrow(all_data_2))
+{
+  all_data_2[i, ]$NeighborhoodNumSalesTot <- gps_num_sales[gps_num_sales$Neighborhood == all_data_2[i, ]$Neighborhood, ]$n
+}
+
+  
 # Split again train/test
 train_gps <- all_data_2[1:nrow(train), ]
 test_gps <- all_data_2[(nrow(train)+1):nrow(all_data_2), ]

@@ -247,7 +247,6 @@ all_data$LotShapeIrregular <- (all_data$LotShape %in% c("IR2", "IR3")) * 1
 
 # LotConfig
 table(train$LotConfig)
-
 all_data$LotConfig <- if_else(all_data$LotConfig %in% c("FR2", "FR3"), "FR", all_data$LotConfig)
 
 # LandSlope
@@ -527,8 +526,12 @@ all_data[, as.character(subset(skdf, better)$name)] <- log(1 + all_data[, as.cha
 ##################################
 # WARNING: SHOULD BE DONE LATER! #
 ##################################
-mus <- sapply(all_data[1:nrow(train), numeric_cols], mean)
-sigmas <- sapply(all_data[1:nrow(train), numeric_cols], sd)
+########################################
+# DANGEROUS:                           #
+# intentionally leak from the test set #
+########################################
+mus <- sapply(all_data[1:nrow(all_data), numeric_cols], mean)
+sigmas <- sapply(all_data[1:nrow(all_data), numeric_cols], sd)
 
 all_data[, numeric_cols] <- scale(all_data[, numeric_cols], mus, sigmas)
 

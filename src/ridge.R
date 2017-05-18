@@ -23,8 +23,8 @@ library(Metrics)
 #############
 
 # Import the data
-train <- read_csv("../data/train_simple.csv")
-test <- read_csv("../data/test_simple.csv")
+train <- read_csv("../data/train_fin.csv")
+test <- read_csv("../data/test_fin.csv")
 
 all_data <- rbind(train[, -ncol(train)], test)
 
@@ -48,6 +48,9 @@ x_test = test[, 2:ncol(test)]
 
 num_folds = 10
 
+# Save the predictions done by crossvalidation
+xval_pred <- data.frame(Id=c(), SalePrice=c())
+
 
 #########
 # RIDGE #
@@ -57,7 +60,7 @@ num_folds = 10
 index = sample(1:nrow(x_train))
 fold_size <- floor(nrow(x_train) / num_folds)
 
-lambdas = c(10, 20, 50)
+lambdas = c(20)
 
 for (l in lambdas)
 {
@@ -79,27 +82,40 @@ for (l in lambdas)
     X_tr <- data.frame(scale(X_tr, center = x_mean, scale = x_sd))
     X_tr[, var_zero] <- NULL
     X_val <- data.frame(scale(X_val, center = x_mean, scale = x_sd))
-
+    X_val[, var_zero] <- NULL
+    
     
     # Scale the output.
     Y_mean <- mean(Y_tr)
     Y_sd <- sd(Y_tr)
     Y_tr <- scale(Y_tr, center = Y_mean, scale = Y_sd)
     Y_val <- scale(Y_val, center = Y_mean, scale = Y_sd)
-    X_tr$SalePrice <- scale(X_tr$SalePrice, center = Y_mean, scale = Y_sd)
-    X_val$SalePrice <- scale(X_val$SalePrice, center = Y_mean, scale = Y_sd)
+    
+    # X_tr$SalePrice <- scale(X_tr$SalePrice, center = Y_mean, scale = Y_sd)
+    # X_val$SalePrice <- scale(X_val$SalePrice, center = Y_mean, scale = Y_sd)
     
     # Drop columns with 0 variance.
     # x_sd <- sapply(X_tr, sd)
     # var_zero <- x_sd == 0
     # X_tr[, var_zero] <- NULL
+    # X_val[, var_zero] <- NULL
     
-  
+    
     
     model<- linearRidge(SalePrice ~., data = X_tr, scaling = "none", lambda = l)
     
     pred <- predict(model, X_val)
     cv_errors <- c(cv_errors, rmse(pred * Y_sd + Y_mean, Y_val * Y_sd + Y_mean))
+    
+    # Scale back the prediction.
+    pred <- pred * Y_sd + Y_mean
+    pred <- exp(pred) - 1
+    # Round to the closest 500
+    pred <- round(pred / 500) * 500
+    
+    pred_data_temp <- data.frame(Id=train[index_test, ]$Id, SalePrice=pred)
+    # Add the new predictions
+    xval_pred <- rbind(xval_pred, pred_data_temp)
   }
   
   print(paste("LAMBDA=", l, "; CV error=", round(mean(cv_errors), digits=4), " ; std dev=", round(sd(cv_errors), digits=4)))
