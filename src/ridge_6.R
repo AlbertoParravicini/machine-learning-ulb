@@ -68,6 +68,10 @@ for (l in lambdas)
   for (i in 1:num_folds) {
     
     index_test <- (((i-1) * fold_size + 1):(i * fold_size))  
+    if (i==num_folds)
+    {
+      index_test = c(index_test, ((i * fold_size)+1):nrow(x_train))
+    }
     index_train <- setdiff(index, index_test)
     
     X_tr <- x_train[index_train, ]
@@ -91,17 +95,7 @@ for (l in lambdas)
     Y_tr <- scale(Y_tr, center = Y_mean, scale = Y_sd)
     Y_val <- scale(Y_val, center = Y_mean, scale = Y_sd)
     
-    # X_tr$SalePrice <- scale(X_tr$SalePrice, center = Y_mean, scale = Y_sd)
-    # X_val$SalePrice <- scale(X_val$SalePrice, center = Y_mean, scale = Y_sd)
-    
-    # Drop columns with 0 variance.
-    # x_sd <- sapply(X_tr, sd)
-    # var_zero <- x_sd == 0
-    # X_tr[, var_zero] <- NULL
-    # X_val[, var_zero] <- NULL
-    
-    
-    
+
     model<- linearRidge(SalePrice ~., data = X_tr, scaling = "none", lambda = l)
     
     pred <- predict(model, X_val)
@@ -121,6 +115,8 @@ for (l in lambdas)
   print(paste("LAMBDA=", l, "; CV error=", round(mean(cv_errors), digits=4), " ; std dev=", round(sd(cv_errors), digits=4)))
 }
 
+xval_pred <- xval_pred %>% arrange(Id)
+write.csv(x=xval_pred, file="../data/predictions/ridge_xval.csv", row.names=F)
 
 ###########
 # PREDICT #
