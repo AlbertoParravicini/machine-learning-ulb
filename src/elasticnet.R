@@ -23,8 +23,8 @@ library(Metrics)
 #############
 
 # Import the data
-train <- read_csv("../data/train_fin.csv")
-test <- read_csv("../data/test_fin.csv")
+train <- read_csv("../data/train_fin_u.csv")
+test <- read_csv("../data/test_fin_u.csv")
 
 all_data <- rbind(train[, -ncol(train)], test)
 
@@ -39,7 +39,7 @@ table(sapply(train, class))
 ################
 
 # shuffle dataset
-train <- train[sample(nrow(train)),]
+# train <- train[sample(nrow(train)),]
 
 x_train = train[, 2:ncol(train)]
 y_train = train$SalePrice
@@ -56,7 +56,7 @@ xval_pred <- data.frame(Id=c(), SalePrice=c())
 # ELASTIC NET #
 ###############
 
-index = sample(1:nrow(x_train))
+index = (1:nrow(x_train))
 fold_size <- floor(nrow(x_train) / num_folds)
 
 params <- expand.grid(alpha=c(1),

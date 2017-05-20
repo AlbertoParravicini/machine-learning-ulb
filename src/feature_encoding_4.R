@@ -66,35 +66,38 @@ table(sapply(train, class))
 
 qual_vars = c("ExterQual", "ExterCond", "BsmtQual", "BsmtCond", "BsmtExposure", "BsmtFinType1",
               "BsmtFinType2", "HeatingQC", "KitchenQual", "FireplaceQu", "GarageQual", "GarageCond", "PoolQC")
-# for(v in qual_vars)
-# {
-#   res <- train %>% dplyr::group_by_(var=v) %>%
-#     dplyr::summarise(price=median(SalePrice)) %>%
-#     arrange(-price)
-#   p <- figure() %>% ly_bar(x = var, y=price, data=res) %>%
-#     x_range(dat=res[order(res$price, decreasing = T), ]$var) %>%
-#     x_axis(label=v)
-#   print(p)
-#   print(res)
-# }
-# 
-# for(v in qual_vars)
-# {
-#   res <- train %>% dplyr::group_by_(var=v) %>%
-#     dplyr::summarise(n=n()) %>%
-#     arrange(-n)
-#   p <- figure() %>% ly_bar(x = var, y=n, data=res, fill_color="red") %>%
-#     x_range(dat=res[order(res$n, decreasing = T), ]$var) %>%
-#     x_axis(label=v)
-#   print(p)
-#   print(res)
-# }
+sales_plots = list()
+for(v in qual_vars)
+{
+  res <- train %>% dplyr::group_by_(var=v) %>%
+    dplyr::summarise(price=median(SalePrice)) %>%
+    arrange(-price)
+  p <- figure() %>% ly_bar(x = var, y=price, data=res) %>%
+    x_range(dat=res[order(res$price, decreasing = T), ]$var) %>%
+    x_axis(label=v)
+  sales_plots <- c(sales_plots, list(p))
+}
+grid_plot(sales_plots, nrow = 4)
+
+num_plots = list()
+for(v in qual_vars)
+{
+  res <- train %>% dplyr::group_by_(var=v) %>%
+    dplyr::summarise(n=n()) %>%
+    arrange(-n)
+  p <- figure() %>% ly_bar(x = var, y=n, data=res, fill_color="red") %>%
+    x_range(dat=res[order(res$n, decreasing = T), ]$var) %>%
+    x_axis(label=v)
+  num_plots <- c(num_plots, list(p))
+}
+grid_plot(num_plots, nrow = 4)
+
 
 # Add binary features for very common occurrences.
 all_data$ExterQualTAGD = (all_data$ExterQual %in% c("TA", "Gd")) * 1
 all_data$BsmtQualTAGD = (all_data$BsmtQual %in% c("TA", "Gd")) * 1
 all_data$KitchenQualTAGD = (all_data$KitchenQual %in% c("TA", "Gd")) * 1
-all_data$FireplaceNone = (all_data$FireplaceQU == "None") * 1
+all_data$FireplaceNone = (all_data$FireplaceQu == "None") * 1
 all_data$GarageQualTA = (all_data$GarageQual == "TA") * 1
 all_data$GarageCondTA = (all_data$GarageCond == "TA") * 1
 all_data$ExterCondTA = (all_data$ExterCond == "TA") * 1
@@ -357,8 +360,8 @@ all_data$BsmtUnfSF <- all_data$BsmtUnfSF * all_data$BsmtPresent
 all_data$NeighborhoodAvgSale_D <- discretize(all_data$NeighborhoodAvgSale, nbins = 5)$X
 all_data$NeighborhoodNumSales_D <- discretize(all_data$NeighborhoodNumSales, nbins = 5)$X
 
-all_data$`1stFlrSF_D` <- discretize(all_data$`1stFlrSF`, nbins = 5)$X
-all_data$`2ndFlrSF_D` <- discretize(all_data$`2ndFlrSF`, nbins = 5)$X
+all_data$`X1stFlrSF_D` <- discretize(all_data$`1stFlrSF`, nbins = 5)$X
+all_data$`X2ndFlrSF_D` <- discretize(all_data$`2ndFlrSF`, nbins = 5)$X
 all_data$`LowQualFinSF` <- discretize(all_data$`LowQualFinSF`, nbins = 5)$X 
 all_data$`GrLivArea` <- discretize(all_data$`GrLivArea`, nbins = 5)$X 
 
@@ -485,23 +488,9 @@ all_data <- cbind(all_data[, !names(all_data) %in% char_columns], all_data_dummy
 # Drop a useless column
 all_data$MSSubClass150 <- NULL
 
-#################################
-# REBUILD TRAIN, TEST, UNSCALED #
-#################################
+# Change name to the columns that start with a number
+all_data <- plyr::rename(all_data, c("1stFlrSF"="X1stFlrSF", "2ndFlrSF"="2ndFlrSF"))
 
-train_fin_u <- all_data[1:nrow(train), ]
-test_fin_u <- all_data[(nrow(train)+1):nrow(all_data), ]
-
-# Put back the sale price.
-train_fin_u$SalePrice <- train$SalePrice
-
-# Log-transform the price.
-# No normalization, that is better to be done in cross-validation, in order not to leak information.
-train_fin_u$SalePrice <- log(1 + train_fin_u$SalePrice)
-
-# Write to csv
-write.csv(x=train_fin_u, file="../data/train_fin_u.csv", row.names=F)
-write.csv(x=test_fin_u, file="../data/test_fin_u.csv", row.names=F)
 
 
 ##############################
@@ -521,6 +510,26 @@ skdf$better <- abs(skdf$skewness) > abs(skdf$logsk1)
 # Log-transform the features that have reduced skew
 
 all_data[, as.character(subset(skdf, better)$name)] <- log(1 + all_data[, as.character(subset(skdf, better)$name)]) 
+
+
+#################################
+# REBUILD TRAIN, TEST, UNSCALED #
+#################################
+
+train_fin_u <- all_data[1:nrow(train), ]
+test_fin_u <- all_data[(nrow(train)+1):nrow(all_data), ]
+
+# Put back the sale price.
+train_fin_u$SalePrice <- train$SalePrice
+
+# Log-transform the price.
+# No normalization, that is better to be done in cross-validation, in order not to leak information.
+train_fin_u$SalePrice <- log(1 + train_fin_u$SalePrice)
+
+# Write to csv
+write.csv(x=train_fin_u, file="../data/train_fin_u.csv", row.names=F)
+write.csv(x=test_fin_u, file="../data/test_fin_u.csv", row.names=F)
+
 
 # Z-Score
 ##################################
