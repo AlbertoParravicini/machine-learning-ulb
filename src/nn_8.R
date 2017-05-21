@@ -16,6 +16,7 @@ library(corrplot)
 library(infotheo)
 library(nnet)
 library(Metrics)
+library(reshape)
 
 
 #############
@@ -63,6 +64,9 @@ rmse(x_train$rlmSalePrice, y_train)
 rmse((x_train$rlmSalePrice + x_train$svmSalePrice)/2, y_train)
 rmse(exp((log(x_train$rlmSalePrice) + log(x_train$svmSalePrice)) / 2) , y_train)
 
+# Save the predictions done by crossvalidation
+xval_pred <- data.frame(Id=c(), SalePrice=c())
+
 
 ######
 # NN #
@@ -72,14 +76,8 @@ rmse(exp((log(x_train$rlmSalePrice) + log(x_train$svmSalePrice)) / 2) , y_train)
 index = sample(1:nrow(x_train))
 fold_size <- floor(nrow(x_train) / num_folds)
 
-params <- expand.grid(g = 2^(-12),
-                      c = c(7),
-                      t= c("nu-regression"),
-                      n = c(0.7),
-                      e = c(0.1),
-                      k = c("radial"),
-                      c0 = c(1.2),
-                      d = c(5))
+params <- expand.grid(s = c(100),
+                      d = c(0.1))
 
 
 for (i in 1:nrow(params))
@@ -120,16 +118,30 @@ for (i in 1:nrow(params))
     Y_val <- scale(Y_val, center = Y_mean, scale = Y_sd)
     
     
-    model<- nnet(SalePrice ~ ., data = X_tr, size=100, linout=T, decay=0.1, maxit=3000, relrol=2^-12)
+    model<- nnet(SalePrice ~ ., data = X_tr, size=p$s, linout=T, decay=p$d, maxit=3000, relrol=2^-12)
     
     pred <- predict(model, X_val)
     cv_errors <- c(cv_errors, rmse(pred * Y_sd + Y_mean, Y_val * Y_sd + Y_mean))
+    
+    # Scale back the prediction.
+    pred <- pred * Y_sd + Y_mean
+    pred <- exp(pred) - 1
+    # Round to the closest 500
+    pred <- round(pred / 500) * 500
+    
+    pred_data_temp <- data.frame(Id=train_nn[index_test, ]$Id, SalePrice=pred)
+    # Add the new predictions
+    xval_pred <- rbind(xval_pred, pred_data_temp)
   }
   
-  print(paste("Error=", round(mean(cv_errors), digits=4), " ; std dev=", round(sd(cv_errors), digits=4)))
+  print(paste("SIZE=", p$s, "; DECAY=", p$d, "; Error=", round(mean(cv_errors), digits=4), " ; std dev=", round(sd(cv_errors), digits=4)))
   #############
   #############
 }
+
+
+xval_pred <- xval_pred %>% arrange(Id)
+write.csv(x=xval_pred, file="../data/predictions/nn_xval.csv", row.names=F)
 
 ###########
 # PREDICT #
@@ -137,10 +149,9 @@ for (i in 1:nrow(params))
 
 test_svm <- read.csv("../data/predictions/svm_fin.csv")
 test_rlm <- read.csv("../data/predictions/ridge_fin_01.csv")
-test_ela <- read.csv("../data/predictions/elastic_fin.csv")
 
 # Write the log-mean to a file, it is also a good average.
-log_res <-  exp((log(test_rlm$SalePrice) + log(test_svm$SalePrice) + log(test_ela$SalePrice)) / 3)
+log_res <-  exp((log(test_rlm$SalePrice) + log(test_svm$SalePrice)) / 2)
 # Round to the closest 500
 log_res <- round(log_res / 500) * 500
 write.csv(x=data.frame(Id=test$Id, SalePrice=log_res), file="../data/predictions/log_res.csv", row.names = F)
@@ -171,7 +182,7 @@ x_test <- data.frame(scale(x_test, center = x_mean[1:(ncol(x_train)-1)], scale =
 x_train[, var_zero] <- NULL
 x_test[, var_zero] <- NULL
 
-model<- nnet(SalePrice ~ ., data = x_train, size=64, linout=T, decay=1, maxit=300)
+model<- nnet(SalePrice ~ ., data = x_train, size=100, linout=T, decay=0.1, maxit=3000, relrol=2^-12)
 
 pred <- predict(model, x_test)
 
@@ -184,13 +195,28 @@ pred <- round(pred / 500) * 500
 
 pred_data <- data.frame(Id=test$Id, SalePrice=pred)
 
-write.csv(x=pred_data, file="../data/predictions/nn_64.csv", row.names=F)
+write.csv(x=pred_data, file="../data/predictions/nn_100.csv", row.names=F)
+
+xval_pred_nn <- read.csv("../data/predictions/nn_xval.csv")
+xval_pred_svm <- read.csv("../data/predictions/svm_xval.csv")
+xval_pred_rlm <- read.csv("../data/predictions/ridge_xval.csv")
+
+train_res = data.frame(RealPrice=train$SalePrice, PriceSVM=log(1+xval_pred_svm$SalePrice), PriceRidge=log(1+xval_pred_rlm$SalePrice), PriceNN=log(1+xval_pred_nn$SalePrice))
+
+figure() %>% ly_boxplot(x=variable, y=value, data=melt(train_res)) %>% x_axis(label="Model") %>%
+  y_axis(label="Log-price")
+
+train_res_2 <- train_res - train_res$RealPrice
+train_res_2$RealPrice <- NULL
+train_res_2 <- train_res_2^2
+
+train_nn <- train_nn %>% arrange(Id)
+figure(legend_location = "top_left") %>% ly_points(x=train_nn$SalePrice, y = log(1 + xval_pred$SalePrice), data=train_nn, hover=Id) %>%
+  ly_abline(lm(log(1 + xval_pred$SalePrice) ~ train_nn$SalePrice, data=train_nn), width=2, type=2, legend="Predicted") %>%
+  ly_abline(a = 0, b = 1, width=2, type=2, color = "red", legend="Ideal")
 
 
 
+figure() %>% ly_boxplot(X2, value, data=melt(train_res_2), outlier_glyph = NA)
 
-
-
-
-
-
+summary(lm(value~X2, data=melt(train_res_2)))

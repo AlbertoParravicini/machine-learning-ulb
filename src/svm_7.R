@@ -172,3 +172,20 @@ pred_data <- data.frame(Id=test$Id, SalePrice=pred)
 
 write.csv(x=pred_data, file="../data/predictions/svm_fin.csv", row.names=F)
 
+train <- train %>% arrange(Id)
+figure(legend_location = "top_left") %>% ly_points(x=train$SalePrice, y = log(1 + xval_pred$SalePrice), data=train, hover=Id) %>%
+  ly_abline(lm(log(1 + xval_pred$SalePrice) ~ train$SalePrice, data=train), width=2, type=2, legend="Predicted") %>%
+  ly_abline(a = 0, b = 1, width=2, type=2, color = "red", legend="Ideal")
+
+
+
+xval_pred_svm <- read.csv("../data/predictions/svm_xval.csv")
+xval_pred_rlm <- read.csv("../data/predictions/ridge_xval.csv")
+
+train_nn <- train_nn %>% arrange(Id)
+figure(legend_location = "top_left") %>% 
+  ly_points(x=SalePrice, y = log(1 + xval_pred_svm$SalePrice), data=train, color="red") %>%
+  ly_points(x=SalePrice, y = log(1 + xval_pred_rlm$SalePrice), data=train, color="green", legend="Ridge")
+
+figure(legend_location = "top_left") %>% 
+  ly_points(x=log(1 + xval_pred_rlm$SalePrice), y = log(1 + SalePrice), data=xval_pred_svm, hover=Id)
